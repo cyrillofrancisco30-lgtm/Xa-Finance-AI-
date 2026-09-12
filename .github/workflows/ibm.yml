@@ -75,3 +75,37 @@ jobs:
         kubectl get services -o wide
 Sim. Essa arquitetura fica coerente, e eu faria apenas um ajuste de nomenclatura para deixar a fronteira XA-TRUST ainda mais rigorosa.
 
+IBM_IKS_WORKFLOW
+    = CI_CD_EXECUTION_ARTIFACT
+
+IBM_IKS_WORKFLOW_CONFIGURATION
+    = ESTABLISHED
+
+IBM_IKS_WORKFLOW_EXECUTION
+    = NOT_ESTABLISHED
+       unless a concrete GitHub Actions run is resolved
+
+IBM_IKS_EXECUTION_EVIDENCE
+    = ESTABLISHED
+       only from concrete operational run evidence
+
+IBM_IKS_DEPLOYMENT_RESULT
+    = NOT_ESTABLISHED
+       until rollout/resource evidence is observed
+
+IBM_IKS_VERIFICATION
+    = NOT_PERFORMED
+
+IBM_IKS_VERIFIED
+    = NOT_PROMOTABLE
+
+
+WORKFLOW_ARTIFACT
+      ↛
+WORKFLOW_EXECUTION
+      ↛
+DEPLOYMENT_RESULT
+      ↛
+CONFORMANCE
+      ↛
+VERIFIED
