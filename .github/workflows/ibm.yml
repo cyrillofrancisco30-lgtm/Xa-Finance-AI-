@@ -73,3 +73,298 @@ jobs:
         kubectl create service loadbalancer $DEPLOYMENT_NAME --tcp=80:$PORT --dry-run -o yaml > service.yaml
         kubectl apply -f service.yaml
         kubectl get services -o wide
+Sim. Essa arquitetura fica coerente, e eu faria apenas um ajuste de nomenclatura para deixar a fronteira XA-TRUST ainda mais rigorosa.
+
+O desenho conceitual pode ficar:
+
+XA-TRUST
+                            │
+             ┌──────────────┼──────────────┐
+             │              │              │
+             ▼              ▼              ▼
+      FUNCTIONAL        XA COMPONENTS   EXTERNAL
+       DOMAINS                          EVIDENCE DOMAINS
+             │              │              │
+             └──────────────┼──────────────┘
+                            ▼
+                     CLAIM CONTRACT
+                            │
+                            ▼
+                       EVIDENCE GRAPH
+                            │
+              ┌─────────────┼─────────────┐
+              ▼             ▼             ▼
+           BINDING       REPLAY       VALIDATION
+              │             │             │
+              └─────────────┼─────────────┘
+                            ▼
+                  INDEPENDENT VERIFIER
+                            │
+                            ▼
+                  DETERMINISTIC PROMOTION
+                            │
+                            ▼
+                         VERIFIED
+
+1. Infraestrutura externa
+
+Seu desenho do Evidence SDK fica corretamente separado:
+
+GitHub ─────┐
+AWS ────────┼──► Evidence SDK / CI-CD
+Google ─────┘              │
+                           ▼
+                    Signed Evidence Bundle
+                           │
+                           ▼
+                Evidence Platform (optional)
+
+A classificação seria:
+
+GitHub / AWS / Google Workspace
+        = EXTERNAL_EVIDENCE_DOMAIN
+
+Evidence SDK
+        = COLLECTION / EVIDENCE COMPONENT
+
+Signed Bundle
+        = EVIDENCE_ARTIFACT
+
+Evidence Platform
+        = OPTIONAL STORAGE / CUSTODY / INDEXING
+
+E não:
+
+Evidence Platform = Verifier
+Evidence Platform = Source of Truth
+Evidence Platform = XA-TRUST
+
+2. A distinção mais importante
+
+Eu congelaria esta regra:
+
+EXTERNAL_SYSTEM
+      ↓
+SOURCE_ARTIFACT / OBSERVATION
+      ↓
+EVIDENCE
+      ↓
+CLAIM-SCOPED BINDING
+      ↓
+INDEPENDENT VERIFICATION
+      ↓
+DETERMINISTIC PROMOTION
+      ↓
+VERIFIED
+
+Portanto:
+
+GitHub
+  ≠
+XA-TRUST
+
+AWS
+  ≠
+XA-TRUST
+
+Google Workspace
+  ≠
+XA-TRUST
+
+Azure OpenAI
+  ≠
+XA-TRUST
+
+Eles podem fornecer fontes de evidência para claims governados pelo XA-TRUST.
+
+3. Evidence SDK
+
+O SDK ocupa uma posição particularmente interessante:
+
+INFRASTRUCTURE
+      │
+      ▼
+EVIDENCE SDK
+      │
+      ▼
+COLLECTION EXECUTION
+      │
+      ▼
+RAW SOURCE ARTIFACTS
+      │
+      ▼
+SIGNED BUNDLE
+
+Aqui podemos reconhecer:
+
+CONFIGURATION_EVIDENCE
+        +
+OBSERVED_COLLECTION_OUTPUT
+        ↓
+COLLECTION_EXECUTION
+        ↓
+EXECUTION_EVIDENCE
+
+Mas depois:
+
+EXECUTION_EVIDENCE
+        ↛
+TRUTH
+        ↛
+CONFORMANCE
+        ↛
+VERIFIED
+
+Isso é exatamente a distinção que você estabeleceu anteriormente.
+
+4. Evidence Platform
+
+A plataforma opcional deve permanecer abaixo do nível de autoridade:
+
+Signed Bundle
+      │
+      ├──────────────► Local custody
+      │
+      └──────────────► Evidence Platform
+                              │
+                    storage / indexing /
+                    retrieval / audit UI
+
+A plataforma pode demonstrar:
+
+UPLOAD_EVENT
+STORAGE_EVENT
+RETRIEVAL_EVENT
+CUSTODY_METADATA
+
+mas isso não significa automaticamente:
+
+SOURCE_TRUTH
+EXECUTION_TRUTH
+CONFORMANCE
+VERIFIED
+
+5. Azure OpenAI
+
+Seu exemplo também está correto:
+
+Azure OpenAI
+     │
+     ▼
+EXTERNAL EVIDENCE DOMAIN
+     │
+     ▼
+Observed request/response
+     │
+     ▼
+Source Artifact
+     │
+     ▼
+Claim-specific binding
+     │
+     ▼
+Evidence Graph
+     │
+     ├── Validation
+     ├── Replay
+     └── Independent Verification
+              │
+              ▼
+        Verification Result
+
+A simples existência de:
+
+deployment
+model
+API
+SDK
+configuration
+OpenAPI
+documentation
+
+não promove para:
+
+AZURE_OPENAI_EXECUTION
+
+A execução precisa de seus próprios bindings.
+
+6. Taxonomia final
+
+Eu usaria:
+
+LEVEL 0
+XA-TRUST
+│
+├── LEVEL 1 — FUNCTIONAL DOMAINS
+│   ├── BANKING
+│   ├── AI / DECISION
+│   ├── API / INTEGRATION
+│   ├── RUNTIME / DEPLOYMENT
+│   ├── EVIDENCE / PROVENANCE
+│   ├── CRYPTOGRAPHIC TRUST
+│   ├── AUDIT / LEDGER
+│   ├── REPLAY
+│   └── GOVERNANCE / COMPLIANCE
+│
+├── LEVEL 2 — XA COMPONENTS
+│   ├── XA BANKING CORE
+│   ├── XA-KERNEL / XFK
+│   ├── XA-CVL
+│   ├── XA FINANCE AI
+│   ├── GT6.7.8 AUDIT LAYER
+│   ├── XA BANKING LEDGER / GT7–GT96-R
+│   ├── XA EVIDENCE / DEP
+│   └── XA REPLAY
+│
+└── LEVEL 3 — EXTERNAL EVIDENCE DOMAINS
+    ├── GitHub / GitHub Actions
+    ├── AWS
+    ├── Google Workspace
+    ├── NuGet
+    ├── JSON Schema
+    ├── Azure
+    ├── Azure OpenAI
+    ├── Databricks
+    ├── Open Finance / Banking APIs
+    └── External REST / OpenAPI runtimes
+
+E adicionaria uma camada transversal, em vez de criar um LEVEL 4:
+
+XA-TRUST GOVERNANCE PLANE
+                              │
+             ┌────────────────┼────────────────┐
+             ▼                ▼                ▼
+       CLAIM CONTRACT    EVIDENCE GRAPH    PROMOTION RULES
+             │                │                │
+             └────────────────┼────────────────┘
+                              ▼
+                    INDEPENDENT VERIFICATION
+
+Assim, XA-TRUST não é simplesmente mais um componente da lista. É o contrato de governança/verificação que define como claims provenientes dos domínios funcionais, componentes XA e sistemas externos podem — ou não podem — ser promovidos.
+
+A regra fundamental fica:
+
+DOMAIN
+  ≠ COMPONENT
+  ≠ EXTERNAL_SYSTEM
+  ≠ ARTIFACT
+  ≠ EVENT
+  ≠ EXECUTION
+  ≠ RESULT
+  ≠ EVIDENCE
+  ≠ VERIFICATION
+  ≠ VERIFIED
+
+E, sobretudo:
+
+CAPABILITY
+      ↛
+EXECUTION
+      ↛
+RESULT
+      ↛
+CONFORMANCE
+      ↛
+VERIFIED
+
+Essa estrutura é particularmente adequada para o commit que você acabou de apresentar, porque permite colocar o README/contrato, o código de canonicalização, os testes, o Evidence SDK, os bundles e os sistemas externos em escopos diferentes, sem permitir que a existência de um deles herde automaticamente o estado de outro.
