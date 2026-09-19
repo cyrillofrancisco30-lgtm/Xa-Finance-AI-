@@ -73,6 +73,81 @@ jobs:
         kubectl create service loadbalancer $DEPLOYMENT_NAME --tcp=80:$PORT --dry-run -o yaml > service.yaml
         kubectl apply -f service.yaml
         kubectl get services -o wide
+Sim. Essa arquitel
+#
+# To configure this workflow:
+#
+# 1. Ensure that your repository contains a Dockerfile
+# 2. Setup secrets in your repository by going to settings: Create ICR_NAMESPACE and IBM_CLOUD_API_KEY
+# 3. Change the values for the IBM_CLOUD_REGION, REGISTRY_HOSTNAME, IMAGE_NAME, IKS_CLUSTER, DEPLOYMENT_NAME, and PORT
+
+name: Build and Deploy to IKS
+
+on:
+  push:
+    branches: [ "main" ]
+
+# Environment variables available to all jobs and steps in this workflow
+env:
+  GITHUB_SHA: ${{ github.sha }}
+  IBM_CLOUD_API_KEY: ${{ secrets.IBM_CLOUD_API_KEY }}
+  IBM_CLOUD_REGION: us-south
+  ICR_NAMESPACE: ${{ secrets.ICR_NAMESPACE }}
+  REGISTRY_HOSTNAME: us.icr.io
+  IMAGE_NAME: iks-test
+  IKS_CLUSTER: example-iks-cluster-name-or-id
+  DEPLOYMENT_NAME: iks-test
+  PORT: 5001
+
+jobs:
+  setup-build-publish-deploy:
+    name: Setup, Build, Publish, and Deploy
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # Download and Install IBM Cloud CLI
+    - name: Install IBM Cloud CLI
+      run: |
+        curl -fsSL https://clis.cloud.ibm.com/install/linux | sh
+        ibmcloud --version
+        ibmcloud config --check-version=false
+        ibmcloud plugin install -f kubernetes-service
+        ibmcloud plugin install -f container-registry
+
+    # Authenticate with IBM Cloud CLI
+    - name: Authenticate with IBM Cloud CLI
+      run: |
+        ibmcloud login --apikey "${IBM_CLOUD_API_KEY}" -r "${IBM_CLOUD_REGION}" -g default
+        ibmcloud cr region-set "${IBM_CLOUD_REGION}"
+        ibmcloud cr login
+
+    # Build the Docker image
+    - name: Build with Docker
+      run: |
+        docker build -t "$REGISTRY_HOSTNAME"/"$ICR_NAMESPACE"/"$IMAGE_NAME":"$GITHUB_SHA" \
+          --build-arg GITHUB_SHA="$GITHUB_SHA" \
+          --build-arg GITHUB_REF="$GITHUB_REF" .
+
+    # Push the image to IBM Container Registry
+    - name: Push the image to ICR
+      run: |
+        docker push $REGISTRY_HOSTNAME/$ICR_NAMESPACE/$IMAGE_NAME:$GITHUB_SHA
+
+    # Deploy the Docker image to the IKS cluster
+    - name: Deploy to IKS
+      run: |
+        ibmcloud ks cluster config --cluster $IKS_CLUSTER
+        kubectl config current-context
+        kubectl create deployment $DEPLOYMENT_NAME --image=$REGISTRY_HOSTNAME/$ICR_NAMESPACE/$IMAGE_NAME:$GITHUB_SHA --dry-run -o yaml > deployment.yaml
+        kubectl apply -f deployment.yaml
+        kubectl rollout status deployment/$DEPLOYMENT_NAME
+        kubectl create service loadbalancer $DEPLOYMENT_NAME --tcp=80:$PORT --dry-run -o yaml > service.yaml
+        kubectl apply -f service.yaml
+        kubectl get services -o wide
 Sim. Essa arquitetura fica coerente, e eu faria apenas um ajuste de nomenclatura para deixar a fronteira XA-TRUST ainda mais rigorosa.
 
 IBM_IKS_WORKFLOW
@@ -109,3 +184,475 @@ DEPLOYMENT_RESULT
 CONFORMANCE
       ↛
 VERIFIED
+
+XA-TRUST — IBM IKS Workflow Governance
+
+Document ID: XA-TRUST-IBM-IKS-GOV-001
+Status: GOVERNANCE SPECIFICATION
+Scope: GitHub Actions → IBM Cloud Container Registry → IBM Kubernetes Service (IKS)
+Verification status: NOT VERIFIED BY THIS DOCUMENT
+
+---
+
+1. Purpose
+
+Este documento define a classificação de evidências associadas ao workflow IBM/IKS e estabelece a separação normativa entre:
+
+- "WORKFLOW_DEFINITION"
+- "EXECUTION_CONTEXT"
+- "ACTUAL_EXECUTION"
+- "EXECUTION_RESULT"
+- "ARTIFACT_BINDING"
+- "INDEPENDENT_VERIFICATION"
+- "CLAIM_SCOPED_VERIFIED"
+
+Este documento não constitui evidência de execução e não promove automaticamente qualquer estado para "VERIFIED".
+
+---
+
+2. Fundamental Non-Derivability
+
+A existência de uma definição de workflow não implica a existência de uma execução.
+
+WORKFLOW_DEFINITION
+        ↛
+ACTUAL_EXECUTION
+9
+
+Da mesma forma:
+
+WORKFLOW_DEFINITION
+        ↛
+EXECUTION_RESULT
+
+EXECUTION_RESULT
+        ↛
+INDEPENDENT_VERIFICATION
+
+LOCAL_VERIFIED_CLAIM
+        ↛
+GLOBAL_VERIFIED_CLAIM
+
+A classificação deve permanecer limitada ao escopo efetivamente demonstrado pelas evidências disponíveis.
+
+---
+
+3. Workflow Definition
+
+O artefato "ibm.yml" pode constituir evidência de configuração quando contém, de forma verificável, elementos como:
+
+push/main
+    ↓
+GitHub Actions
+    ↓
+checkout
+    ↓
+IBM Cloud CLI
+    ↓
+IBM Cloud authentication
+    ↓
+IBM Container Registry
+    ↓
+docker build
+    ↓
+docker push
+    ↓
+kubectl apply
+    ↓
+rollout status
+
+A presença desses comandos demonstra que o mecanismo está definido.
+
+Não demonstra que os comandos tenham sido executados.
+
+Classificação:
+
+ibm.yml
+   │
+   ▼
+WORKFLOW_CONFIGURATION_EVIDENCE
+
+---
+
+4. Execution Identity
+
+Uma execução concreta deve possuir identidade própria.
+
+Os seguintes elementos devem ser tratados como entidades distintas:
+
+GITHUB_SHA
+GITHUB_RUN_ID
+GITHUB_RUN_ATTEMPT
+WORKFLOW
+JOB
+RUNNER
+ENVIRONMENT
+
+Em particular:
+
+GITHUB_SHA
+    ≠
+GITHUB_RUN_ID
+
+e:
+
+GITHUB_RUN_ID
+    ≠
+EXECUTION_RESULT
+
+O commit identifica uma versão do código. O "run_id" identifica uma execução específica do workflow.
+
+Nenhum dos dois, isoladamente, constitui prova de sucesso operacional.
+
+---
+
+5. Artifact Identity
+
+Quando o workflow utiliza:
+
+IMAGE:$GITHUB_SHA
+
+existe uma relação declarada entre o commit e a referência da imagem:
+
+GITHUB_SHA
+    ↓
+IMAGE TAG
+
+Essa relação não deve ser confundida com uma prova de identidade imutável do artefato.
+
+Para estabelecer identidade criptográfica do artefato, deve ser obtido o digest efetivamente associado à imagem:
+
+IMAGE_TAG
+    ↓
+IMAGE_DIGEST
+
+Portanto:
+
+IMAGE_TAG
+    ≠
+IMAGE_DIGEST
+
+O digest deve ser obtido de uma evidência operacional verificável do registry ou do runtime.
+
+---
+
+6. Deployment Binding
+
+A cadeia de binding desejada é:
+
+COMMIT
+   ↓
+GITHUB ACTIONS RUN
+   ↓
+BUILD
+   ↓
+IMAGE
+   ↓
+IMAGE DIGEST
+   ↓
+IBM CONTAINER REGISTRY
+   ↓
+IKS DEPLOYMENT
+   ↓
+POD
+   ↓
+RUNTIME
+
+A existência dessa cadeia como configuração não é suficiente.
+
+Cada vínculo deve ser sustentado por evidência correspondente.
+
+---
+
+7. Required Execution Evidence
+
+Para classificar uma execução concreta, devem ser preservados, quando aplicáveis:
+
+GITHUB_RUN_ID
+GITHUB_RUN_ATTEMPT
+GITHUB_SHA
+WORKFLOW_NAME
+JOB_NAME
+RUNNER
+EXECUTION_TIMESTAMP
+BUILD_RESULT
+IMAGE_REFERENCE
+IMAGE_DIGEST
+ICR_REPOSITORY
+IMAGE_MANIFEST
+PUSH_RESULT
+DEPLOYMENT_REFERENCE
+DEPLOYMENT_UID
+POD_IMAGE_ID
+ROLLOUT_RESULT
+RUNTIME_STATE
+
+A ausência de um desses elementos não deve ser preenchida por inferência.
+
+---
+
+8. IBM Authentication
+
+A presença de:
+
+IBM_CLOUD_API_KEY
+
+ou de uma referência a secret demonstra apenas uma dependência/configuração do workflow.
+
+Não demonstra que a autenticação ocorreu.
+
+A distinção é:
+
+SECRET_REFERENCE
+        ≠
+AUTHENTICATION_EXECUTION
+        ≠
+AUTHENTICATION_SUCCESS
+
+A autenticação executada deve ser demonstrada por evidência proveniente da execução correspondente, observando os requisitos de segurança e não expondo credenciais.
+
+---
+
+9. IKS Cluster Identity
+
+Valores como:
+
+IKS_CLUSTER: example-iks-cluster-name-or-id
+
+devem ser classificados como configuração ou placeholder enquanto não houver evidência operacional que associe a execução a um cluster concreto.
+
+Portanto:
+
+CLUSTER_REFERENCE
+        ≠
+CLUSTER_EXISTENCE_PROOF
+        ≠
+DEPLOYMENT_EXECUTION
+
+---
+
+10. Rollout Verification
+
+A presença de:
+
+kubectl rollout status
+
+demonstra que o workflow contém um mecanismo para consultar o rollout.
+
+Não demonstra que o rollout foi executado ou concluído com sucesso.
+
+A classificação correta exige evidência do comando executado e seu resultado:
+
+ROLLOUT_COMMAND
+        ↓
+EXECUTION
+        ↓
+RESULT
+
+Somente o último estágio, quando devidamente vinculado à execução, pode sustentar uma afirmação sobre o resultado do rollout.
+
+---
+
+11. Evidence State Model
+
+O modelo recomendado é:
+
+E1
+WORKFLOW_DEFINITION
+        │
+        │ ibm.yml
+        ▼
+E2
+EXECUTION_CONTEXT
+        │
+        ├── repository
+        ├── workflow
+        ├── commit
+        ├── run_id
+        ├── run_attempt
+        ├── runner
+        └── environment
+        │
+        ▼
+E3
+ACTUAL_EXECUTION
+        │
+        ├── checkout
+        ├── authentication
+        ├── build
+        ├── push
+        ├── deployment
+        └── rollout
+        │
+        ▼
+E4
+EXECUTION_RESULT
+        │
+        ├── build result
+        ├── image digest
+        ├── push result
+        ├── deployment result
+        └── rollout result
+        │
+        ▼
+E5
+ARTIFACT_BINDING
+        │
+        ├── commit
+        ├── execution
+        ├── image digest
+        ├── registry artifact
+        └── deployment/runtime reference
+        │
+        ▼
+E6
+INDEPENDENT_VERIFICATION
+        │
+        ▼
+E7
+CLAIM_SCOPED_VERIFIED
+
+---
+
+12. Claim Scope
+
+Uma afirmação deve possuir escopo explícito.
+
+Exemplo:
+
+CLAIM:
+Deployment X used image digest Y
+
+não deve ser promovida automaticamente para:
+
+CLAIM:
+All deployments used image digest Y
+
+ou:
+
+CLAIM:
+The entire IBM deployment environment is verified
+
+A promoção de escopo exige nova avaliação e evidência correspondente.
+
+---
+
+13. Verification Requirements
+
+Uma classificação "VERIFIED" requer, no mínimo, uma cadeia verificável entre:
+
+CLAIM
+  ↓
+EVIDENCE
+  ↓
+IDENTITY
+  ↓
+BINDING
+  ↓
+INTEGRITY
+  ↓
+INDEPENDENT VERIFICATION
+
+A simples presença de:
+
+- YAML;
+- comandos;
+- hashes;
+- tags;
+- logs isolados;
+- referências de registry;
+- IDs;
+- documentação;
+- declarações de sucesso;
+
+não deve ser interpretada isoladamente como prova de execução verificável.
+
+---
+
+14. Current Classification of ibm.yml
+
+Elemento| Classificação
+Workflow definition| "ESTABLISHED"
+"push/main" trigger| "ESTABLISHED"
+"GITHUB_SHA"| "IDENTITY_INPUT"
+SHA → image tag| "ESTABLISHED_AS_DECLARED"
+Docker build definition| "ESTABLISHED"
+ICR push definition| "ESTABLISHED"
+IKS deployment definition| "ESTABLISHED"
+Rollout command definition| "ESTABLISHED"
+Actual GitHub Actions execution| "NOT_DERIVED"
+IBM authentication execution| "NOT_DERIVED"
+Docker build execution| "NOT_DERIVED"
+ICR push execution| "NOT_DERIVED"
+Image digest| "NOT_DEMONSTRATED_BY_YAML"
+IKS deployment execution| "NOT_DERIVED"
+Rollout success| "NOT_DERIVED"
+Runtime state| "NOT_DEMONSTRATED"
+Independent verification| "NOT_DEMONSTRATED"
+XA-TRUST VERIFIED| "NOT_PROMOTABLE_FROM_YAML_ALONE"
+
+---
+
+15. Separation of Artifacts
+
+O workflow executável deve conter somente instruções destinadas à execução.
+
+Especificações de governança, classificação e análise devem permanecer fora do workflow:
+
+.github/workflows/ibm.yml
+        │
+        └── EXECUTABLE WORKFLOW
+
+docs/governance/XA-TRUST-IBM-IKS.md
+        │
+        └── GOVERNANCE SPECIFICATION
+
+Não inserir no YAML executável blocos textuais de análise, classificação ou conclusões de governança sem sintaxe YAML válida.
+
+---
+
+16. Governance Principle
+
+O princípio operacional é:
+
+WORKFLOW PRODUCES EXECUTION
+        ↓
+EXECUTION PRODUCES EVIDENCE
+        ↓
+XA-TRUST CLASSIFIES EVIDENCE
+        ↓
+INDEPENDENT VERIFIER VALIDATES CLAIM
+
+Não:
+
+WORKFLOW
+   ↓
+DECLARATION OF VERIFICATION
+
+A camada de governança não deve declarar como executado aquilo que somente está definido no workflow.
+
+---
+
+17. Final Status
+
+ibm.yml
+    =
+WORKFLOW_CONFIGURATION_EVIDENCE
+
+NOT:
+
+ibm.yml
+    =
+EXECUTION_EVIDENCE
+
+NOT:
+
+ibm.yml
+    =
+VERIFIED_DEPLOYMENT
+
+A promoção para "CLAIM_SCOPED_VERIFIED" depende de evidência operacional concreta, binding verificável e verificação independente dentro do escopo da afirmação.
+
+Status: "CONFIGURATION_ESTABLISHED / EXECUTION_NOT_DEMONSTRATED / VERIFIED_NOT_PROMOTED"
+
+
